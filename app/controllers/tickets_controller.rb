@@ -1,4 +1,7 @@
 # Copyright (C) 2012-2016 Zammad Foundation, http://zammad-foundation.org/
+require 'net/http'
+require 'json'
+require 'uri'
 
 class TicketsController < ApplicationController
   include CreatesTicketArticles
@@ -24,7 +27,7 @@ class TicketsController < ApplicationController
     end
 
     access_condition = Ticket.access_condition(current_user, 'read')
-    tickets = Ticket.where(access_condition).order(id: :asc).offset(offset).limit(per_page)
+    tickets = Ticket.where(access_condition).order(id: 'ASC').offset(offset).limit(per_page)
 
     if response_expand?
       list = []
@@ -44,7 +47,7 @@ class TicketsController < ApplicationController
       end
       render json: {
         record_ids: item_ids,
-        assets:     assets,
+        assets: assets,
       }, status: :ok
       return
     end
@@ -107,11 +110,11 @@ class TicketsController < ApplicationController
         role_ids = Role.signup_role_ids
         local_customer = User.create(
           firstname: '',
-          lastname:  '',
-          email:     email,
-          password:  '',
-          active:    true,
-          role_ids:  role_ids,
+          lastname: '',
+          email: email,
+          password: '',
+          active: true,
+          role_ids: role_ids,
         )
       end
       clean_params[:customer_id] = local_customer.id
@@ -151,6 +154,8 @@ class TicketsController < ApplicationController
 
     # create ticket
     ticket.save!
+
+
     ticket.with_lock do
 
       # create tags if given
@@ -177,19 +182,16 @@ class TicketsController < ApplicationController
     if params[:links].present?
       link = params[:links].permit!.to_h
       raise Exceptions::UnprocessableEntity, 'Invalid link structure' if !link.is_a? Hash
-
       link.each do |target_object, link_types_with_object_ids|
         raise Exceptions::UnprocessableEntity, 'Invalid link structure (Object)' if !link_types_with_object_ids.is_a? Hash
-
         link_types_with_object_ids.each do |link_type, object_ids|
           raise Exceptions::UnprocessableEntity, 'Invalid link structure (Object->LinkType)' if !object_ids.is_a? Array
-
           object_ids.each do |local_object_id|
             link = Link.add(
-              link_type:                link_type,
-              link_object_target:       target_object,
+              link_type: link_type,
+              link_object_target: target_object,
               link_object_target_value: local_object_id,
-              link_object_source:       'Ticket',
+              link_object_source: 'Ticket',
               link_object_source_value: ticket.id,
             )
           end
@@ -217,6 +219,33 @@ class TicketsController < ApplicationController
     render json: ticket.reload.attributes_with_association_ids, status: :created
   end
 
+  def rocket(user, ticketid)
+    url = ENV['ROCKET_URL']
+    uri = URI.parse(url + '/api/v1/login')
+    header = {'Accept': 'application/json'}
+    req = Net::HTTP::Post.new(uri.request_uri, header)
+    req.set_form_data({"user" => ENV['ROCKET_USER'], "password" => ENV['ROCKET_PASSWORD']})
+  
+    res = Net::HTTP.start(uri.host, uri.port, 
+          :use_ssl => uri.scheme == 'https') {|http| http.request req}
+  
+    if res.code != '200'
+      # puts "failed " + res.code + ", " + res.message
+      return
+    end
+    data = JSON.parse(res.body)
+    token = data['data']['authToken']
+    uid = data['data']['userId']
+    uri = URI(url + '/api/v1/chat.postMessage')
+    message = {'channel': '@' + user, 'text': 'you have been notified in zammad ticket https://support.genouest.org/#ticket/zoom/' + ticketid.to_s}
+    loggedheader = {'X-Auth-Token': token, 'X-User-Id': uid}
+    req = Net::HTTP::Post.new(uri.request_uri, loggedheader)
+    req.set_form_data(message)
+    res = Net::HTTP.start(uri.host, uri.port, 
+          :use_ssl => uri.scheme == 'https') {|http| http.request req}
+  end
+
+
   # PUT /api/v1/tickets/1
   def update
     ticket = Ticket.find(params[:id])
@@ -224,9 +253,6 @@ class TicketsController < ApplicationController
 
     clean_params = Ticket.association_name_to_id_convert(params)
     clean_params = Ticket.param_cleanup(clean_params, true)
-
-    # only apply preferences changes (keep not updated keys/values)
-    clean_params = ticket.param_preferences_merge(clean_params)
 
     # overwrite params
     if !current_user.permissions?('ticket.agent')
@@ -239,6 +265,13 @@ class TicketsController < ApplicationController
       ticket.update!(clean_params)
       if params[:article]
         article_create(ticket, params[:article])
+        # matches = params[:article][:body].scan(/@(\w+)/)
+        # if ENV['ROCKET_URL'] != '' && matches != nil &&  matches.length > 0
+        #  matches.each do |notif|
+        #    rocket(notif[0].to_s, ticket.id.to_s)
+        #  end
+        # end
+        
       end
     end
 
@@ -281,7 +314,7 @@ class TicketsController < ApplicationController
     # return result
     result = Ticket::ScreenOptions.list_by_customer(
       customer_id: params[:customer_id],
-      limit:       15,
+      limit: 15,
     )
     render json: result
   end
@@ -294,7 +327,10 @@ class TicketsController < ApplicationController
     access!(ticket, 'read')
 
     # get history of ticket
-    render json: ticket.history_get(true)
+    history = ticket.history_get(true)
+
+    # return result
+    render json: history
   end
 
   # GET /api/v1/ticket_related/1
@@ -309,11 +345,11 @@ class TicketsController < ApplicationController
     ticket_lists = Ticket
                    .where(
                      customer_id: ticket.customer_id,
-                     state_id:    Ticket::State.by_category(:open).pluck(:id),
+                     state_id: Ticket::State.by_category(:open)
                    )
                    .where(access_condition)
                    .where('id != ?', [ ticket.id ])
-                   .order(created_at: :desc)
+                   .order('created_at DESC')
                    .limit(6)
 
     # if we do not have open related tickets, search for any tickets
@@ -322,11 +358,11 @@ class TicketsController < ApplicationController
                      .where(
                        customer_id: ticket.customer_id,
                      ).where.not(
-                       state_id: Ticket::State.by_category(:merged).pluck(:id),
+                       state_id: Ticket::State.by_category(:merged)
                      )
                      .where(access_condition)
                      .where('id != ?', [ ticket.id ])
-                     .order(created_at: :desc)
+                     .order('created_at DESC')
                      .limit(6)
     end
 
@@ -342,7 +378,6 @@ class TicketsController < ApplicationController
     recent_views.each do |recent_view|
       next if recent_view.object.name != 'Ticket'
       next if recent_view.o_id == ticket.id
-
       ticket_ids_recent_viewed.push recent_view.o_id
       recent_view_ticket = Ticket.find(recent_view.o_id)
       assets = recent_view_ticket.assets(assets)
@@ -350,21 +385,9 @@ class TicketsController < ApplicationController
 
     # return result
     render json: {
-      assets:                   assets,
-      ticket_ids_by_customer:   ticket_ids_by_customer,
+      assets: assets,
+      ticket_ids_by_customer: ticket_ids_by_customer,
       ticket_ids_recent_viewed: ticket_ids_recent_viewed,
-    }
-  end
-
-  # GET /api/v1/ticket_recent
-  def ticket_recent
-    ticket_ids = RecentView.list(current_user, 10, Ticket.name).map(&:o_id)
-    tickets    = ticket_ids.map { |elem| Ticket.lookup(id: elem) }
-    assets     = ApplicationModel::CanAssets.reduce(tickets)
-
-    render json: {
-      assets:                   assets,
-      ticket_ids_recent_viewed: ticket_ids
     }
   end
 
@@ -375,7 +398,7 @@ class TicketsController < ApplicationController
     ticket_master = Ticket.find_by(number: params[:master_ticket_number])
     if !ticket_master
       render json: {
-        result:  'failed',
+        result: 'failed',
         message: 'No such master ticket number!',
       }
       return
@@ -386,7 +409,7 @@ class TicketsController < ApplicationController
     ticket_slave = Ticket.find_by(id: params[:slave_ticket_id])
     if !ticket_slave
       render json: {
-        result:  'failed',
+        result: 'failed',
         message: 'No such slave ticket!',
       }
       return
@@ -395,15 +418,15 @@ class TicketsController < ApplicationController
 
     # merge ticket
     ticket_slave.merge_to(
-      ticket_id:     ticket_master.id,
+      ticket_id: ticket_master.id,
       created_by_id: current_user.id,
     )
 
     # return result
     render json: {
-      result:        'success',
+      result: 'success',
       master_ticket: ticket_master.attributes,
-      slave_ticket:  ticket_slave.attributes,
+      slave_ticket: ticket_slave.attributes,
     }
   end
 
@@ -418,7 +441,7 @@ class TicketsController < ApplicationController
     assets = article.assets(assets)
 
     render json: {
-      assets:      assets,
+      assets: assets,
       attachments: article_attachments_clone(article),
     }
   end
@@ -457,12 +480,12 @@ class TicketsController < ApplicationController
 
     # build result list
     tickets = Ticket.search(
-      query:        query,
-      condition:    params[:condition].to_h,
-      limit:        per_page,
-      offset:       offset,
-      order_by:     params[:order_by],
-      sort_by:      params[:sort_by],
+      query: query,
+      condition: params[:condition].to_h,
+      limit: per_page,
+      offset: offset,
+      order_by: params[:order_by],
+      sort_by: params[:sort_by],
       current_user: current_user,
     )
 
@@ -484,9 +507,9 @@ class TicketsController < ApplicationController
 
     # return result
     render json: {
-      tickets:       ticket_result,
+      tickets: ticket_result,
       tickets_count: tickets.count,
-      assets:        assets,
+      assets: assets,
     }
   end
 
@@ -494,7 +517,7 @@ class TicketsController < ApplicationController
   def selector
     permission_check('admin.*')
 
-    ticket_count, tickets = Ticket.selectors(params[:condition], limit: 6)
+    ticket_count, tickets = Ticket.selectors(params[:condition], 6)
 
     assets = {}
     ticket_ids = []
@@ -505,9 +528,9 @@ class TicketsController < ApplicationController
 
     # return result
     render json: {
-      ticket_ids:   ticket_ids,
+      ticket_ids: ticket_ids,
       ticket_count: ticket_count || 0,
-      assets:       assets,
+      assets: assets,
     }
   end
 
@@ -529,26 +552,25 @@ class TicketsController < ApplicationController
       if !user
         raise "No such user with id #{params[:user_id]}"
       end
-
       conditions = {
         closed_ids: {
-          'ticket.state_id'    => {
+          'ticket.state_id' => {
             operator: 'is',
-            value:    Ticket::State.by_category(:closed).pluck(:id),
+            value: Ticket::State.by_category(:closed).pluck(:id),
           },
           'ticket.customer_id' => {
             operator: 'is',
-            value:    user.id,
+            value: user.id,
           },
         },
-        open_ids:   {
-          'ticket.state_id'    => {
+        open_ids: {
+          'ticket.state_id' => {
             operator: 'is',
-            value:    Ticket::State.by_category(:open).pluck(:id),
+            value: Ticket::State.by_category(:open).pluck(:id),
           },
           'ticket.customer_id' => {
             operator: 'is',
-            value:    user.id,
+            value: user.id,
           },
         },
       }
@@ -571,26 +593,25 @@ class TicketsController < ApplicationController
       if !organization
         raise "No such organization with id #{params[:organization_id]}"
       end
-
       conditions = {
         closed_ids: {
-          'ticket.state_id'        => {
+          'ticket.state_id' => {
             operator: 'is',
-            value:    Ticket::State.by_category(:closed).pluck(:id),
+            value: Ticket::State.by_category(:closed).pluck(:id),
           },
           'ticket.organization_id' => {
             operator: 'is',
-            value:    organization.id,
+            value: organization.id,
           },
         },
-        open_ids:   {
-          'ticket.state_id'        => {
+        open_ids: {
+          'ticket.state_id' => {
             operator: 'is',
-            value:    Ticket::State.by_category(:open).pluck(:id),
+            value: Ticket::State.by_category(:open).pluck(:id),
           },
           'ticket.organization_id' => {
             operator: 'is',
-            value:    organization.id,
+            value: organization.id,
           },
         },
       }
@@ -607,9 +628,9 @@ class TicketsController < ApplicationController
 
     # return result
     render json: {
-      user:         user_tickets,
+      user: user_tickets,
       organization: org_tickets,
-      assets:       assets,
+      assets: assets,
     }
   end
 
@@ -628,8 +649,8 @@ class TicketsController < ApplicationController
     )
     send_data(
       csv_string,
-      filename:    'example.csv',
-      type:        'text/csv',
+      filename: 'example.csv',
+      type: 'text/csv',
       disposition: 'attachment'
     )
 
@@ -649,19 +670,13 @@ class TicketsController < ApplicationController
     if Setting.get('import_mode') != true
       raise 'Only can import tickets if system is in import mode.'
     end
-
-    string = params[:data]
-    if string.blank? && params[:file].present?
-      string = params[:file].read.force_encoding('utf-8')
-    end
-    raise Exceptions::UnprocessableEntity, 'No source data submitted!' if string.blank?
-
+    string = params[:data] || params[:file].read.force_encoding('utf-8')
     result = Ticket.csv_import(
-      string:       string,
+      string: string,
       parse_params: {
         col_sep: params[:col_sep] || ',',
       },
-      try:          params[:try],
+      try: params[:try],
     )
     render json: result, status: :ok
   end
@@ -671,10 +686,8 @@ class TicketsController < ApplicationController
   def follow_up_possible_check
     ticket = Ticket.find(params[:id])
 
-    return true if current_user.permissions?('ticket.agent') # agents can always reopen tickets, regardless of group configuration
     return true if ticket.group.follow_up_possible != 'new_ticket' # check if the setting for follow_up_possible is disabled
     return true if ticket.state.name != 'closed' # check if the ticket state is already closed
-
     raise Exceptions::UnprocessableEntity, 'Cannot follow up on a closed ticket. Please create a new ticket.'
   end
 
@@ -703,23 +716,29 @@ class TicketsController < ApplicationController
 
     # get links
     links = Link.list(
-      link_object:       'Ticket',
+      link_object: 'Ticket',
       link_object_value: ticket.id,
     )
-
-    assets = Link.reduce_assets(assets, links)
+    link_list = []
+    links.each do |item|
+      link_list.push item
+      if item['link_object'] == 'Ticket'
+        linked_ticket = Ticket.lookup(id: item['link_object_value'])
+        assets = linked_ticket.assets(assets)
+      end
+    end
 
     # get tags
     tags = ticket.tag_list
 
     # return result
     {
-      ticket_id:          ticket.id,
+      ticket_id: ticket.id,
       ticket_article_ids: article_ids,
-      assets:             assets,
-      links:              links,
-      tags:               tags,
-      form_meta:          attributes_to_change[:form_meta],
+      assets: assets,
+      links: link_list,
+      tags: tags,
+      form_meta: attributes_to_change[:form_meta],
     }
   end
 
