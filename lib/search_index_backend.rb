@@ -946,4 +946,3 @@ refreshes all indexes to make previous request data visible in future requests
   end
 
 end
-

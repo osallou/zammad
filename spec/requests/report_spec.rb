@@ -280,4 +280,3 @@ RSpec.describe 'Report', type: :request, searchindex: true do
     end
   end
 end
-
