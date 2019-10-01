@@ -107,3 +107,4 @@ RSpec.describe ObjectManager::Attribute, type: :model do
     end
   end
 end
+
