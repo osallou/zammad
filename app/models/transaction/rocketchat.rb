@@ -194,18 +194,6 @@ class Transaction::Rocketchat
 
           Rails.logger.debug { "sent webhook (#{@item[:type]}/#{ticket.id}/#{local_config['webhook']})" }
 
-
-          #if local_config['expand']
-          #  body = "#{result[:subject]}\n#{result[:body]}"
-          #  result = notifier.ping body
-          #else
-            # attachment = {
-            #  text:      result[:body],
-            #  mrkdwn_in: ['text'],
-            #  color:     color,
-            #}
-          #  result = notifier.ping result[:subject]
-          #end
           body = "#{result[:subject]}\n#{result[:body]}"
           ping_res = notifier.ping body
           if !ping_res

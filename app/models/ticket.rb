@@ -30,7 +30,7 @@ class Ticket < ApplicationModel
 
   activity_stream_permission 'ticket.agent'
 
-  activity_stream_attributes_ignored :organization_id, # organization_id will channge automatically on user update
+  activity_stream_attributes_ignored :organization_id, # organization_id will change automatically on user update
                                      :create_article_type_id,
                                      :create_article_sender_id,
                                      :article_count,
@@ -568,7 +568,7 @@ condition example
 
       selector = selector_raw.stringify_keys
       raise "Invalid selector, operator missing #{selector.inspect}" if !selector['operator']
-      raise "Invalid selector, operator #{selector['operator']} is invalid #{selector.inspect}" if selector['operator'] !~ /^(is|is\snot|contains|contains\s(not|all|one|all\snot|one\snot)|(after|before)\s\(absolute\)|(within\snext|within\slast|after|before)\s\(relative\))$/
+      raise "Invalid selector, operator #{selector['operator']} is invalid #{selector.inspect}" if !selector['operator'].match?(/^(is|is\snot|contains|contains\s(not|all|one|all\snot|one\snot)|(after|before)\s\(absolute\)|(within\snext|within\slast|after|before)\s\(relative\))$/)
 
       # validate value / allow blank but only if pre_condition exists and is not specific
       if !selector.key?('value') ||
@@ -1195,11 +1195,11 @@ result
 
 get all articles of a ticket in correct order (overwrite active record default method)
 
-  artilces = ticket.articles
+  articles = ticket.articles
 
 result
 
-  [article1, articl2]
+  [article1, article2]
 
 =end
 
@@ -1356,9 +1356,9 @@ result
       end
       next if skip_user
 
-      # send notifications only to email adresses
+      # send notifications only to email addresses
       next if recipient_email.blank?
-      next if recipient_email !~ /@/
+      next if !recipient_email.match?(/@/)
 
       # check if address is valid
       begin
@@ -1375,7 +1375,7 @@ result
           recipient_email = "#{$2}@#{$3}"
         end
         next if recipient_email.blank?
-        next if recipient_email !~ /@/
+        next if !recipient_email.match?(/@/)
         next if recipient_email.match?(/\s/)
       end
 

@@ -2,10 +2,12 @@ Zammad::Application.routes.draw do
 
   match '/tests_core',                        to: 'tests#core',                       via: :get
   match '/tests_session',                     to: 'tests#session',                    via: :get
+  match '/tests_local_storage',               to: 'tests#local_storage',              via: :get
   match '/tests_ui',                          to: 'tests#ui',                         via: :get
   match '/tests_model',                       to: 'tests#model',                      via: :get
   match '/tests_model_binding',               to: 'tests#model_binding',              via: :get
   match '/tests_model_ui',                    to: 'tests#model_ui',                   via: :get
+  match '/tests_model_ticket',                to: 'tests#model_ticket',               via: :get
   match '/tests_form',                        to: 'tests#form',                       via: :get
   match '/tests_form_tree_select',            to: 'tests#form_tree_select',           via: :get
   match '/tests_form_find',                   to: 'tests#form_find',                  via: :get

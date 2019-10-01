@@ -94,7 +94,7 @@ module Channel::Filter::IdentifySender
   def self.create_recipients(mail)
     max_count = 40
     current_count = 0
-    ['raw-to', 'raw-cc'].each do |item|
+    %w[raw-to raw-cc].each do |item|
       next if mail[item.to_sym].blank?
 
       begin
@@ -104,7 +104,7 @@ module Channel::Filter::IdentifySender
         items.each do |address_data|
           email_address = address_data.address
           next if email_address.blank?
-          next if email_address !~ /@/
+          next if !email_address.match?(/@/)
           next if email_address.match?(/\s/)
 
           user_create(
@@ -116,7 +116,7 @@ module Channel::Filter::IdentifySender
           return false if current_count == max_count
         end
       rescue => e
-        # parse not parseable fields by mail gem like
+        # parse not parsable fields by mail gem like
         #  - Max Kohl | [example.com] <kohl@example.com>
         #  - Max Kohl <max.kohl <max.kohl@example.com>
         Rails.logger.error 'ERROR: ' + e.inspect
@@ -132,7 +132,7 @@ module Channel::Filter::IdentifySender
             display_name = $1
           end
           next if address.blank?
-          next if address !~ /@/
+          next if !address.match?(/@/)
           next if address.match?(/\s/)
 
           user_create(

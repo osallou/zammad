@@ -1,6 +1,7 @@
 require 'rails_helper'
 
-require 'system/examples/text_modules_group_dependency_examples'
+require 'system/examples/text_modules_examples'
+require 'system/examples/macros_examples'
 
 RSpec.describe 'Ticket Update', type: :system do
 
@@ -40,7 +41,7 @@ RSpec.describe 'Ticket Update', type: :system do
 
       within(:active_content) do
         # update should work now
-        find('.edit [name=internal_name1]').select('name 2')
+        find(".edit [name=#{attribute.name}]").select('name 2')
         click('.js-attributeBar .js-submit')
         expect(page).to have_no_css('.js-submitDropdown .js-submit[disabled]', wait: 2)
       end
@@ -84,7 +85,7 @@ RSpec.describe 'Ticket Update', type: :system do
                                  },
                                })
 
-      # refresh browser to get macro accessable
+      # refresh browser to get macro accessible
       refresh
 
       # create a new ticket and attempt to update its state without the required select attribute
@@ -139,6 +140,10 @@ RSpec.describe 'Ticket Update', type: :system do
   end
 
   context 'when using text modules' do
-    include_examples 'group-dependent text modules', path:  "#ticket/zoom/#{Ticket.first.id}"
+    include_examples 'text modules', path:  "#ticket/zoom/#{Ticket.first.id}"
+  end
+
+  context 'when using macros' do
+    include_examples 'macros', path:  "#ticket/zoom/#{Ticket.first.id}"
   end
 end

@@ -24,7 +24,7 @@ check token and return bot attributes of token
 
 =begin
 
-set webhool for bot
+set webhook for bot
 
   success = Telegram.set_webhook('token', callback_url)
 
@@ -80,7 +80,7 @@ returns
       raise 'Group invalid!'
     end
 
-    # generate randam callback token
+    # generate random callback token
     callback_token = if Rails.env.test?
                        'callback_token'
                      else
@@ -109,6 +109,7 @@ returns
       callback_url:   callback_url,
       api_token:      token,
       welcome:        params[:welcome],
+      goodbye:        params[:goodbye],
     }
     channel.group_id = group.id
     channel.active = true
@@ -312,10 +313,11 @@ returns
     end
 
     # find ticket or create one
-    state_ids = Ticket::State.where(name: %w[closed merged removed]).pluck(:id)
-    ticket = Ticket.where(customer_id: user.id).where.not(state_id: state_ids).order(:updated_at).first
-    if ticket
+    state_ids        = Ticket::State.where(name: %w[closed merged removed]).pluck(:id)
+    possible_tickets = Ticket.where(customer_id: user.id).where.not(state_id: state_ids).order(:updated_at)
+    ticket           = possible_tickets.find_each.find { |possible_ticket| possible_ticket.preferences[:channel_id] == channel.id  }
 
+    if ticket
       # check if title need to be updated
       if ticket.title == '-'
         ticket.title = title
@@ -628,7 +630,7 @@ returns
       params.delete(:edited_channel_post) # discard unused :edited_channel_post hash
     end
 
-    # prevent multible update
+    # prevent multiple update
     if !params[:edited_message]
       return if Ticket::Article.find_by(message_id: Telegram.message_id(params))
     end
@@ -653,9 +655,17 @@ returns
     # find ticket and close it
     elsif text.present? && text =~ %r{^/end}
       user = to_user(params)
-      ticket = Ticket.where(customer_id: user.id).order(:updated_at).first
-      ticket.state = Ticket::State.find_by(name: 'closed')
+
+      # get the last ticket of customer which is not closed yet, and close it
+      state_ids        = Ticket::State.where(name: %w[closed merged removed]).pluck(:id)
+      possible_tickets = Ticket.where(customer_id: user.id).where.not(state_id: state_ids).order(:updated_at)
+      ticket           = possible_tickets.find_each.find { |possible_ticket| possible_ticket.preferences[:channel_id] == channel.id  }
+      ticket.state     = Ticket::State.find_by(name: 'closed')
       ticket.save!
+
+      return if !channel.options[:goodbye]
+
+      message(params[:message][:chat][:id], channel.options[:goodbye])
       return
     end
 
@@ -663,7 +673,7 @@ returns
 
     # use transaction
     Transaction.execute(reset_user_id: true) do
-      user = to_user(params)
+      user   = to_user(params)
       ticket = to_ticket(params, user, group_id, channel)
       to_article(params, user, ticket, channel)
     end

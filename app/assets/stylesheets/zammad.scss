@@ -2102,10 +2102,20 @@ input.has-error {
 
 .controls--button {
   display: flex;
+  flex-wrap: wrap;
+
+  .controls {
+    flex: 1;
+  } 
+  
+  .help-inline,
+  .help-block {
+    flex-basis: 100%;
+  }
 
   input,
   .form-control {
-    flex: 1;
+    flex: 1 1 0%;
     @include bidi-style(border-right-width, 0, border-left-width, 1px);
     @include bidi-style(border-top-right-radius, 0, border-top-left-radius, 3px);
     @include bidi-style(border-bottom-right-radius, 0, border-bottom-left-radius, 3px);
@@ -2154,6 +2164,14 @@ input.has-error {
   position: relative;
   border: 1px solid hsl(0, 0%, 90%);
   @include bidi-style(border-radius, 0 3px 3px 0, border-radius, 3px 0 0 3px);
+  
+  .icon {
+    fill: hsl(0,0%,61%);
+  }
+
+  &:hover .icon {
+    fill: hsl(0,0%,33%);
+  }
 }
 
 .searchfield {
@@ -3060,6 +3078,10 @@ ol.tabs li {
   }
 
   &.auth-provider--weibo {
+    background: hsl(0,0%,27%);
+  }
+
+  &.auth-provider--saml {
     background: hsl(0,0%,27%);
   }
 
@@ -4964,7 +4986,7 @@ footer {
 
   .stat-widget {
     height: 200px;
-    padding: 13px;
+    padding: 10px 10px 8px;
     text-align: center;
     line-height: 20px;
   }
@@ -5000,12 +5022,12 @@ footer {
       cursor: help;
     }
 
-    .stat-widget .stat-label {
+    .stat-label {
       color: #444a4f;
       @extend .u-textTruncate;
     }
 
-    .stat-widget .stat-detail {
+    .stat-detail {
       color: #b4b7b9;
       @extend .u-textTruncate;
     }
@@ -5042,11 +5064,15 @@ footer {
 
 .stats-row {
   padding: 8px 0 7px;
-  margin-bottom: -7px;
   border-radius: 3px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  flex: 0 1 38px;
+  
+  .icon {
+    display: block;
+  }
 }
 
 .stats-row:hover {
@@ -5054,28 +5080,30 @@ footer {
 }
 
   .stats-row .stat-bars {
-    height: 73px;
-    margin: 16px 0 15px;
-    padding: 2px 12px;
+    flex: 1;
+    margin: 10px 0 13px;
+    padding: 2px 5px;
     width: 100%;
     background: linear-gradient(to top, #f2f2f3, #f2f2f3 1px, transparent 1px);
     background-position: center bottom;
     background-size: 100% 12px;
     display: flex;
     align-items: flex-end;
+    justify-content: center;
   }
 
   .stat-bars .stat-bar {
     border-radius: 5px;
-    width: 10px;
+    max-width: 10px;
+    flex: 1;
     color: #a9bcc4;
     background: #a9bcc4;
-  }
 
-  .stat-widget .secondary {
-    opacity: .38;
-    color: #a9bcc4;
-    background: #a9bcc4;
+    &--outbound {
+      opacity: .38;
+      color: #a9bcc4;
+      background: #a9bcc4;
+    }
   }
 
   .stat-legend {
@@ -5099,6 +5127,17 @@ footer {
     border-radius: 100%;
     display: inline-block;
   }
+
+.ticket_channel_distribution {
+  .stat-graphic {
+    align-items: stretch;
+  }
+
+  .stats-row {
+    margin-bottom: -4px;
+    position: relative;
+  }
+}
 
 .frequency.stat-widget {
   .stat-bars {
@@ -10181,7 +10220,7 @@ output {
     }
 
     &-label {
-      width: 50%;
+      width:  80%;
       margin: 10px 0;
     }
   }

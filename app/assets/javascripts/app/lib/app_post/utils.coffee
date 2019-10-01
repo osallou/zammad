@@ -704,7 +704,7 @@ class App.Utils
     res.join('')
 
   # textReplaced = App.Utils.replaceTags( template, { user: { firstname: 'Bob', lastname: 'Smith' } } )
-  @replaceTags: (template, objects) ->
+  @replaceTags: (template, objects, encodeLink = false) ->
     template = template.replace( /#\{\s{0,2}(.+?)\s{0,2}\}/g, (index, key) ->
       key = key.replace(/<.+?>/g, '')
       levels  = key.split(/\./)
@@ -744,6 +744,7 @@ class App.Utils
       else
         value = ''
       value = '-' if value is ''
+      value = encodeURIComponent(value) if encodeLink
       value
     )
 
@@ -816,17 +817,22 @@ class App.Utils
   # check if attachment is referenced in message
   @checkAttachmentReference: (message) ->
     return false if !message
+
+    # remove blockquote from message, check only the unquoted content
+    tmp = $('<div>' + message + '</div>')
+    tmp.find('blockquote').remove()
+    text = tmp.text()
+
     matchwords = ['Attachment', 'attachment', 'Attached', 'attached', 'Enclosed', 'enclosed', 'Enclosure', 'enclosure']
     for word in matchwords
-
       # en
       attachmentTranslatedRegExp = new RegExp("\\W#{word}\\W", 'i')
-      return word if message.match(attachmentTranslatedRegExp)
+      return word if text.match(attachmentTranslatedRegExp)
 
       # user locale
       attachmentTranslated = App.i18n.translateContent(word)
       attachmentTranslatedRegExp = new RegExp("\\W#{attachmentTranslated}\\W", 'i')
-      return attachmentTranslated if message.match(attachmentTranslatedRegExp)
+      return attachmentTranslated if text.match(attachmentTranslatedRegExp)
     false
 
   # human readable file size

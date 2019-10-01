@@ -1179,7 +1179,7 @@ set type of task (closeTab, closeNextInOverview, stayOnTab)
     cookies = instance.manage.all_cookies
     cookies.each do |cookie|
       # :name=>"_zammad_session_c25832f4de2", :value=>"adc31cd21615cb0a7ab269184ec8b76f", :path=>"/", :domain=>"localhost", :expires=>nil, :secure=>false}
-      next if cookie[:name] !~ /#{params[:name]}/i
+      next if !cookie[:name].match?(/#{params[:name]}/i)
 
       if params.key?(:value) && cookie[:value].to_s =~ /#{params[:value]}/i
         assert(true, "matching value '#{params[:value]}' in cookie '#{cookie}'")
@@ -2525,6 +2525,8 @@ wait untill text in selector disabppears
       end
     end
 
+    # avoid accessing a stale element when accessing task type
+    sleep 1
     task_type(
       browser: instance,
       type:    params[:task_type] || 'stayOnTab',

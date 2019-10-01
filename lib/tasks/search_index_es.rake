@@ -147,6 +147,12 @@ namespace :searchindex do
 
   end
 
+  task :refresh, [:opts] => :environment do |_t, _args|
+    print 'refresh all indexes...'
+
+    SearchIndexBackend.refresh
+  end
+
   task :rebuild, [:opts] => :environment do |_t, _args|
     Rake::Task['searchindex:drop'].execute
     Rake::Task['searchindex:create'].execute
@@ -275,20 +281,22 @@ end
 
 # get es version
 def es_version
-  info = SearchIndexBackend.info
-  number = nil
-  if info.present?
-    number = info['version']['number'].to_s
+  @es_version ||= begin
+    info = SearchIndexBackend.info
+    number = nil
+    if info.present?
+      number = info['version']['number'].to_s
+    end
+    number
   end
-  number
 end
 
 # no es_pipeline for elasticsearch 5.5 and lower
 def es_pipeline?
   number = es_version
   return false if number.blank?
-  return false if number =~ /^[2-4]\./
-  return false if number =~ /^5\.[0-5]\./
+  return false if number.match?(/^[2-4]\./)
+  return false if number.match?(/^5\.[0-5]\./)
 
   true
 end
@@ -297,7 +305,7 @@ end
 def es_multi_index?
   number = es_version
   return false if number.blank?
-  return false if number =~ /^[2-5]\./
+  return false if number.match?(/^[2-5]\./)
 
   true
 end
@@ -306,7 +314,7 @@ end
 def es_type_in_mapping?
   number = es_version
   return true if number.blank?
-  return true if number =~ /^[2-6]\./
+  return true if number.match?(/^[2-6]\./)
 
   false
 end
